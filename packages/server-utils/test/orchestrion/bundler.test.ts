@@ -227,6 +227,7 @@ describe('sentryOrchestrionPlugin (vite)', () => {
     const plugin = vitePlugin();
     (plugin.configResolved as (config: unknown) => void)({
       command,
+      plugins: [plugin],
       ssr: { external: ssrExternal },
       logger: { warn },
     } as unknown as ResolvedConfig);
@@ -322,6 +323,37 @@ describe('sentryOrchestrionPlugin (vite)', () => {
     expect(transform.call({}, 'code', 'id', { ssr: false })).toBeNull();
     expect(transform.call({}, 'code', 'id', undefined)).toBeNull();
     expect(transform.call({}, 'code', 'id', { ssr: true })).toBe('transformed');
+  });
+
+  it('transforms and warns only in the first instance when two Sentry plugins add it to one build', () => {
+    const first = vitePlugin();
+    const second = vitePlugin();
+    const warn = vi.fn();
+    const config = {
+      command: 'build',
+      plugins: [{ name: 'other' }, first, second],
+      ssr: { external: ['mysql'] },
+      logger: { warn },
+    } as unknown as ResolvedConfig;
+
+    (first.configResolved as (config: unknown) => void)(config);
+    (second.configResolved as (config: unknown) => void)(config);
+
+    const firstTransform = first.transform as (
+      this: unknown,
+      code: string,
+      id: string,
+      opts?: { ssr?: boolean },
+    ) => unknown;
+    const secondTransform = second.transform as (
+      this: unknown,
+      code: string,
+      id: string,
+      opts?: { ssr?: boolean },
+    ) => unknown;
+    expect(firstTransform.call({}, 'code', 'id', { ssr: true })).toBe('transformed');
+    expect(secondTransform.call({}, 'code', 'id', { ssr: true })).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it('gates resolveId on the ssr flag and falls back to self-resolution', async () => {

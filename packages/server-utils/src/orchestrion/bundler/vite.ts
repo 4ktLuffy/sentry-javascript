@@ -9,6 +9,8 @@ import { resolveOrchestrionRuntimeRequest, SNIPPET_IMPORT_SPECIFIER } from './re
 
 type TransformHandler = (this: unknown, code: string, id: string, opts?: { ssr?: boolean }) => unknown;
 
+const PLUGIN_NAME = 'sentry-orchestrion';
+
 // On Vite >= 6 `applyToEnvironment` (below) keeps the whole plugin out of
 // client environments. Vite 5 (e.g. Remix v2) ignores that hook, so without
 // this gate the transform would also run in the CLIENT build — where modules
@@ -16,10 +18,10 @@ type TransformHandler = (this: unknown, code: string, id: string, opts?: { ssr?:
 // snippet's import of the subscriber factories (which import
 // `node:diagnostics_channel`) breaks against Vite's browser builtin shim. Gate
 // on the `ssr` flag, which Vite passes on both major versions.
-function ssrOnlyTransform(transform: Plugin['transform']): Plugin['transform'] {
+function ssrOnlyTransform(transform: Plugin['transform'], isDuplicate: () => boolean): Plugin['transform'] {
   const gate = (handler: TransformHandler): TransformHandler =>
     function (code, id, opts) {
-      if (!opts?.ssr) {
+      if (!opts?.ssr || isDuplicate()) {
         return null;
       }
       return handler.call(this, code, id, opts);
@@ -62,9 +64,13 @@ export function sentryOrchestrionPlugin(options: PluginOptions = {}): Plugin {
     '@sentry/server-utils',
   ];
 
-  return {
+  // `true` when an earlier instance of this plugin is in the same build, which then transforms the modules alone.
+  let isDuplicate = false;
+
+  const plugin: Plugin = {
     ...upstream,
-    transform: ssrOnlyTransform(upstream.transform),
+    name: PLUGIN_NAME,
+    transform: ssrOnlyTransform(upstream.transform, () => isDuplicate),
     // The module-injected snippet imports `@sentry/server-utils` from INSIDE
     // transformed `node_modules` files. Under isolated installs (pnpm) that bare
     // specifier doesn't resolve from an instrumented package's location, so when
@@ -119,8 +125,12 @@ export function sentryOrchestrionPlugin(options: PluginOptions = {}): Plugin {
       return { resolve: { noExternal: noExternalModules() } };
     },
     configResolved(config: ResolvedConfig): void {
+      // Two Sentry Vite plugins can each add this plugin to one build, for example `sentryCloudflareVitePlugin` and
+      // `sentryReactRouter`. A module transformed twice declares the injected snippet twice and fails the build.
+      isDuplicate = config.plugins.find(p => p.name === PLUGIN_NAME) !== plugin;
+
       // Nothing is force-bundled in `serve`, so an externalized module is expected there.
-      if (config.command === 'serve') {
+      if (isDuplicate || config.command === 'serve') {
         return;
       }
 
@@ -140,4 +150,6 @@ export function sentryOrchestrionPlugin(options: PluginOptions = {}): Plugin {
       }
     },
   };
+
+  return plugin;
 }
