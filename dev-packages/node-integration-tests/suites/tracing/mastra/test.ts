@@ -15,7 +15,10 @@ import {
   GEN_AI_USAGE_INPUT_TOKENS,
   GEN_AI_USAGE_OUTPUT_TOKENS,
   GEN_AI_USAGE_TOTAL_TOKENS,
+  SENTRY_OP,
+  SENTRY_ORIGIN,
 } from '@sentry/conventions/attributes';
+import { GEN_AI_CHAT, GEN_AI_EVALUATE, GEN_AI_EXECUTE_TOOL, GEN_AI_INVOKE_AGENT } from '@sentry/conventions/op';
 import { afterAll, expect } from 'vitest';
 import { conditionalTest } from '../../../utils';
 import { cleanupChildProcesses, createEsmAndCjsTests } from '../../../utils/runner';
@@ -69,8 +72,8 @@ conditionalTest({ min: 22 })('Mastra integration', () => {
 
               const agentSpan = container.items.find(span => span.name === 'invoke_agent weather_agent')!;
               expect(agentSpan.status).toBe('ok');
-              expect(agentSpan.attributes['sentry.op'].value).toBe('gen_ai.invoke_agent');
-              expect(agentSpan.attributes['sentry.origin'].value).toBe('auto.ai.mastra');
+              expect(agentSpan.attributes[SENTRY_OP].value).toBe(GEN_AI_INVOKE_AGENT);
+              expect(agentSpan.attributes[SENTRY_ORIGIN].value).toBe('auto.ai.mastra');
               expect(agentSpan.attributes[GEN_AI_OPERATION_NAME].value).toBe('invoke_agent');
               expect(agentSpan.attributes[GEN_AI_AGENT_NAME].value).toBe('weather_agent');
               expect(agentSpan.attributes[GEN_AI_PIPELINE_NAME].value).toBe('weather_agent');
@@ -81,8 +84,8 @@ conditionalTest({ min: 22 })('Mastra integration', () => {
 
               const chatSpan = container.items.find(span => span.name === 'chat gpt-4o-mini')!;
               expect(chatSpan.status).toBe('ok');
-              expect(chatSpan.attributes['sentry.op'].value).toBe('gen_ai.chat');
-              expect(chatSpan.attributes['sentry.origin'].value).toBe('auto.ai.mastra');
+              expect(chatSpan.attributes[SENTRY_OP].value).toBe(GEN_AI_CHAT);
+              expect(chatSpan.attributes[SENTRY_ORIGIN].value).toBe('auto.ai.mastra');
               expect(chatSpan.attributes[GEN_AI_OPERATION_NAME].value).toBe('chat');
               expect(chatSpan.attributes[GEN_AI_REQUEST_MODEL].value).toBe('gpt-4o-mini');
               expect(chatSpan.attributes[GEN_AI_PROVIDER_NAME].value).toBe('openai');
@@ -159,8 +162,8 @@ conditionalTest({ min: 22 })('Mastra integration', () => {
 
               const toolSpan = container.items.find(span => span.name === 'execute_tool get_weather')!;
               expect(toolSpan.status).toBe('ok');
-              expect(toolSpan.attributes['sentry.op'].value).toBe('gen_ai.execute_tool');
-              expect(toolSpan.attributes['sentry.origin'].value).toBe('auto.ai.mastra');
+              expect(toolSpan.attributes[SENTRY_OP].value).toBe(GEN_AI_EXECUTE_TOOL);
+              expect(toolSpan.attributes[SENTRY_ORIGIN].value).toBe('auto.ai.mastra');
               expect(toolSpan.attributes[GEN_AI_OPERATION_NAME].value).toBe('execute_tool');
               expect(toolSpan.attributes[GEN_AI_TOOL_NAME].value).toBe('get_weather');
               expect(toolSpan.attributes[GEN_AI_TOOL_CALL_ARGUMENTS].value).toContain('Berlin');
@@ -196,7 +199,7 @@ conditionalTest({ min: 22 })('Mastra integration', () => {
               expect(container.items.map(span => span.name)).toEqual(['invoke_agent math_workflow']);
 
               const workflowSpan = container.items[0]!;
-              expect(workflowSpan.attributes['sentry.op'].value).toBe('gen_ai.invoke_agent');
+              expect(workflowSpan.attributes[SENTRY_OP].value).toBe(GEN_AI_INVOKE_AGENT);
               expect(workflowSpan.attributes[GEN_AI_PIPELINE_NAME].value).toBe('math_workflow');
             },
           })
@@ -220,8 +223,8 @@ conditionalTest({ min: 22 })('Mastra integration', () => {
               expect(container.items.map(span => span.name)).toEqual(['evaluate jev-latest']);
 
               const evaluateSpan = container.items[0]!;
-              expect(evaluateSpan.attributes['sentry.op'].value).toBe('gen_ai.evaluate');
-              expect(evaluateSpan.attributes['sentry.origin'].value).toBe('auto.ai.mastra');
+              expect(evaluateSpan.attributes[SENTRY_OP].value).toBe(GEN_AI_EVALUATE);
+              expect(evaluateSpan.attributes[SENTRY_ORIGIN].value).toBe('auto.ai.mastra');
               expect(evaluateSpan.attributes[GEN_AI_OPERATION_NAME].value).toBe('evaluate');
               expect(evaluateSpan.attributes[GEN_AI_REQUEST_MODEL].value).toBe('jev-latest');
               expect(evaluateSpan.attributes[GEN_AI_PROVIDER_NAME].value).toBe('typesafe-ai.evaluation');
@@ -286,7 +289,7 @@ conditionalTest({ min: 22 })('Mastra integration', () => {
                 'invoke_agent weather_agent',
               ]);
               for (const span of container.items) {
-                expect(span.attributes['sentry.origin'].value).toBe('auto.ai.mastra');
+                expect(span.attributes[SENTRY_ORIGIN].value).toBe('auto.ai.mastra');
               }
             },
           })
@@ -375,7 +378,7 @@ conditionalTest({ min: 22 })('Mastra integration', () => {
           })
           .expect({
             span: container => {
-              const chat = container.items.find(span => span.attributes['sentry.op']?.value === 'gen_ai.chat')!;
+              const chat = container.items.find(span => span.attributes[SENTRY_OP]?.value === GEN_AI_CHAT)!;
               expect(chat).toBeDefined();
               chatSpanId = chat.span_id;
 
@@ -383,7 +386,7 @@ conditionalTest({ min: 22 })('Mastra integration', () => {
                 span => span.attributes[GEN_AI_TOOL_NAME]?.value === 'count_items',
               )!;
               expect(executeTool).toBeDefined();
-              expect(executeTool.attributes['sentry.op']?.value).toBe('gen_ai.execute_tool');
+              expect(executeTool.attributes[SENTRY_OP]?.value).toBe(GEN_AI_EXECUTE_TOOL);
               executeToolSpanId = executeTool.span_id;
             },
           })
@@ -433,7 +436,7 @@ conditionalTest({ min: 22 })('Mastra integration', () => {
           })
           .expect({
             span: container => {
-              const chat = container.items.find(span => span.attributes['sentry.op']?.value === 'gen_ai.chat')!;
+              const chat = container.items.find(span => span.attributes[SENTRY_OP]?.value === GEN_AI_CHAT)!;
               expect(chat).toBeDefined();
               chatSpanId = chat.span_id;
 
@@ -441,7 +444,7 @@ conditionalTest({ min: 22 })('Mastra integration', () => {
                 span => span.attributes[GEN_AI_TOOL_NAME]?.value === 'count_items',
               )!;
               expect(executeTool).toBeDefined();
-              expect(executeTool.attributes['sentry.op']?.value).toBe('gen_ai.execute_tool');
+              expect(executeTool.attributes[SENTRY_OP]?.value).toBe(GEN_AI_EXECUTE_TOOL);
               executeToolSpanId = executeTool.span_id;
             },
           })
